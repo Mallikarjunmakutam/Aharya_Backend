@@ -1,47 +1,54 @@
 from rest_framework import serializers
 from .models import Category, Product, ProductImage, Review
+from .cloudinary_utils import upload_product_image, delete_cloudinary_image
+
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
         fields = '__all__'
 
-class ProductImageSerializer(serializers.ModelSerializer):
-    image = serializers.SerializerMethodField()
-    image_file = serializers.ImageField(write_only=True, required=False, source='image')
-    image_url = serializers.URLField(write_only=True, required=False, allow_blank=True, allow_null=True)
 
+class ProductImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductImage
-        fields = ['id', 'product', 'image', 'image_file', 'image_url', 'is_main', 'alt_text']
-
-    def get_image(self, obj):
-        if not obj.image:
-            return None
-        img_val = str(obj.image)
-        if img_val.startswith('http://') or img_val.startswith('https://'):
-            return img_val
-        request = self.context.get('request')
-        if request:
-            return request.build_absolute_uri(obj.image.url)
-        return obj.image.url
+        fields = ['id', 'product', 'image', 'is_main', 'alt_text']
+        read_only_fields = ['image']
 
     def create(self, validated_data):
-        image_url = validated_data.pop('image_url', None)
-        if image_url:
-            validated_data['image'] = image_url
+        request = self.context.get('request')
+        image_file = request.FILES.get('image') if request else None
+        if not image_file:
+            raise serializers.ValidationError({'image': 'An image file is required.'})
+
+        product = validated_data['product']
+        try:
+            validated_data['image'] = upload_product_image(image_file, str(product.id))
+        except ValueError as exc:
+            raise serializers.ValidationError({'image': str(exc)}) from exc
+
         return super().create(validated_data)
 
     def update(self, instance, validated_data):
-        image_url = validated_data.pop('image_url', None)
-        if image_url:
-            validated_data['image'] = image_url
+        request = self.context.get('request')
+        image_file = request.FILES.get('image') if request else None
+        if image_file:
+            delete_cloudinary_image(instance.image)
+            try:
+                validated_data['image'] = upload_product_image(
+                    image_file, str(instance.product_id)
+                )
+            except ValueError as exc:
+                raise serializers.ValidationError({'image': str(exc)}) from exc
+
         return super().update(instance, validated_data)
+
 
 class ReviewSerializer(serializers.ModelSerializer):
     class Meta:
         model = Review
         fields = '__all__'
+
 
 class ProductListSerializer(serializers.ModelSerializer):
     category = CategorySerializer(read_only=True)
@@ -50,7 +57,7 @@ class ProductListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
         fields = [
-            'id', 'name', 'slug', 'category', 'price', 'discount_price', 
+            'id', 'name', 'slug', 'category', 'price', 'discount_price',
             'rating', 'total_reviews', 'is_featured', 'main_image', 'item_code'
         ]
 
@@ -58,15 +65,8 @@ class ProductListSerializer(serializers.ModelSerializer):
         image = obj.images.filter(is_main=True).first()
         if not image:
             image = obj.images.first()
-        if image:
-            img_val = str(image.image)
-            if img_val.startswith('http://') or img_val.startswith('https://'):
-                return img_val
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(image.image.url)
-            return image.image.url
-        return None
+        return image.image if image else None
+
 
 class ProductDetailSerializer(serializers.ModelSerializer):
     category = CategorySerializer(read_only=True)

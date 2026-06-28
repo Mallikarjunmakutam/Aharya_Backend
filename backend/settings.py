@@ -220,3 +220,8 @@ RAZORPAY_KEY_SECRET = config('RAZORPAY_KEY_SECRET', default='')
 
 # Google OAuth
 GOOGLE_CLIENT_ID = config('GOOGLE_CLIENT_ID', default='')
+
+# Cloudinary (product image uploads)
+CLOUDINARY_CLOUD_NAME = config('CLOUDINARY_CLOUD_NAME', default='')
+CLOUDINARY_API_KEY = config('CLOUDINARY_API_KEY', default='')
+CLOUDINARY_API_SECRET = config('CLOUDINARY_API_SECRET', default='')

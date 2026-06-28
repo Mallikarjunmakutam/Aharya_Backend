@@ -1,4 +1,4 @@
-from rest_framework import viewsets, filters, status, permissions
+from rest_framework import viewsets, filters, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
@@ -6,7 +6,7 @@ from .models import Category, Product, ProductImage
 from .serializers import (
     CategorySerializer, ProductListSerializer, ProductDetailSerializer, ProductImageSerializer
 )
-
+from .cloudinary_utils import delete_cloudinary_image
 class IsAdminOrReadOnly(permissions.BasePermission):
     def has_permission(self, request, view):
         if request.method in permissions.SAFE_METHODS:
@@ -78,3 +78,7 @@ class ProductImageViewSet(viewsets.ModelViewSet):
         if is_main and product:
             ProductImage.objects.filter(product=product, is_main=True).update(is_main=False)
         serializer.save()
+
+    def perform_destroy(self, instance):
+        delete_cloudinary_image(instance.image)
+        instance.delete()

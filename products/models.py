@@ -49,7 +49,7 @@ class Product(models.Model):
 
 class ProductImage(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='images')
-    image = models.ImageField(upload_to='products/')
+    image = models.URLField(max_length=500, blank=True)
     is_main = models.BooleanField(default=False)
     alt_text = models.CharField(max_length=255, blank=True)
 
