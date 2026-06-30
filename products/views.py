@@ -2,9 +2,9 @@ from rest_framework import viewsets, filters, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
-from .models import Category, Product, ProductImage
+from .models import Category, Product, ProductImage, Review
 from .serializers import (
-    CategorySerializer, ProductListSerializer, ProductDetailSerializer, ProductImageSerializer
+    CategorySerializer, ProductListSerializer, ProductDetailSerializer, ProductImageSerializer, ReviewSerializer
 )
 from .cloudinary_utils import delete_cloudinary_image
 class IsAdminOrReadOnly(permissions.BasePermission):
@@ -23,7 +23,7 @@ class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.all()
     permission_classes = [IsAdminOrReadOnly]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['category__slug', 'is_featured', 'fabric']
+    filterset_fields = ['category__slug', 'category__name', 'is_featured', 'fabric']
     search_fields = ['name', 'description', 'item_code']
     ordering_fields = ['price', 'created_at', 'rating']
     
@@ -44,7 +44,7 @@ class ProductViewSet(viewsets.ModelViewSet):
         
         try:
             return Product.objects.get(id=lookup_value)
-        except (ValueError, Product.DoesNotExist):
+        except Exception:
             return Product.objects.get(slug=lookup_value)
 
     @action(detail=False, methods=['get'])
@@ -82,3 +82,23 @@ class ProductImageViewSet(viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         delete_cloudinary_image(instance.image)
         instance.delete()
+
+
+class ReviewViewSet(viewsets.ModelViewSet):
+    queryset = Review.objects.all()
+    serializer_class = ReviewSerializer
+    permission_classes = [permissions.AllowAny]
+
+    def perform_create(self, serializer):
+        review = serializer.save()
+        product = review.product
+        
+        # Calculate new average rating & count
+        reviews = product.reviews.all()
+        total_reviews = reviews.count()
+        avg_rating = sum(r.rating for r in reviews) / total_reviews if total_reviews > 0 else 0.0
+        
+        product.rating = round(avg_rating, 2)
+        product.total_reviews = total_reviews
+        product.save()
+

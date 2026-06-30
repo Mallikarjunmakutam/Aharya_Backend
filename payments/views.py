@@ -63,7 +63,9 @@ class VerifyPaymentView(APIView):
             order.save()
             
             # Clear user cart on success
-            Cart.objects.filter(user=order.user).first().items.all().delete()
+            clear_cart = request.data.get('clear_cart', True)
+            if clear_cart:
+                Cart.objects.filter(user=order.user).first().items.all().delete()
 
             return Response({'message': 'Payment successful'}, status=status.HTTP_200_OK)
         except Exception as e:
