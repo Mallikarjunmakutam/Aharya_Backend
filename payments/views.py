@@ -33,7 +33,9 @@ class CreateRazorpayOrderView(APIView):
             order.razorpay_order_id = razorpay_order['id']
             order.save()
             
-            return Response(razorpay_order, status=status.HTTP_200_OK)
+            response_data = dict(razorpay_order)
+            response_data['key_id'] = settings.RAZORPAY_KEY_ID
+            return Response(response_data, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -44,6 +46,7 @@ class VerifyPaymentView(APIView):
         razorpay_payment_id = request.data.get('razorpay_payment_id')
         razorpay_order_id = request.data.get('razorpay_order_id')
         razorpay_signature = request.data.get('razorpay_signature')
+        order_id = request.data.get('order_id')
 
         params_dict = {
             'razorpay_order_id': razorpay_order_id,
@@ -52,13 +55,27 @@ class VerifyPaymentView(APIView):
         }
 
         try:
-            # Verify signature
-            client.utility.verify_payment_signature(params_dict)
+            # Verify signature (allow mock verification in DEBUG mode)
+            if settings.DEBUG and razorpay_signature and str(razorpay_signature).startswith('sig_mock_'):
+                pass
+            else:
+                client.utility.verify_payment_signature(params_dict)
             
             # Update order
-            order = Order.objects.get(razorpay_order_id=razorpay_order_id)
+            order = None
+            if order_id:
+                try:
+                    order = Order.objects.get(id=order_id)
+                except Order.DoesNotExist:
+                    pass
+            
+            if not order:
+                order = Order.objects.get(razorpay_order_id=razorpay_order_id)
+
             order.payment_status = 'Paid'
             order.razorpay_payment_id = razorpay_payment_id
+            if not order.razorpay_order_id:
+                order.razorpay_order_id = razorpay_order_id
             order.order_status = 'Paid'
             order.save()
             

@@ -76,7 +76,18 @@ class ProductDetailSerializer(serializers.ModelSerializer):
     )
     images = ProductImageSerializer(many=True, read_only=True)
     reviews = ReviewSerializer(many=True, read_only=True)
+    has_purchased = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
         fields = '__all__'
+
+    def get_has_purchased(self, obj):
+        request = self.context.get('request')
+        if not request or not request.user or not request.user.is_authenticated:
+            return False
+        from orders.models import OrderItem
+        return OrderItem.objects.filter(
+            order__user=request.user,
+            product=obj
+        ).exclude(order__order_status='Cancelled').exists()

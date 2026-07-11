@@ -89,6 +89,35 @@ class ReviewViewSet(viewsets.ModelViewSet):
     serializer_class = ReviewSerializer
     permission_classes = [permissions.AllowAny]
 
+    def create(self, request, *args, **kwargs):
+        from rest_framework import status
+        if not request.user or not request.user.is_authenticated:
+            return Response(
+                {"detail": "You must be logged in to submit a review."},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        product_id = request.data.get('product')
+        if not product_id:
+            return Response(
+                {"detail": "Product is required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        from orders.models import OrderItem
+        has_purchased = OrderItem.objects.filter(
+            order__user=request.user,
+            product_id=product_id
+        ).exclude(order__order_status='Cancelled').exists()
+        
+        if not has_purchased:
+            return Response(
+                {"detail": "You must purchase the product before submitting a review."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+            
+        return super().create(request, *args, **kwargs)
+
     def perform_create(self, serializer):
         review = serializer.save()
         product = review.product
