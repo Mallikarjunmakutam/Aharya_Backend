@@ -34,6 +34,7 @@ class Order(models.Model):
     
     razorpay_order_id = models.CharField(max_length=255, blank=True, null=True)
     razorpay_payment_id = models.CharField(max_length=255, blank=True, null=True)
+    stock_decremented = models.BooleanField(default=False)
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -41,12 +42,30 @@ class Order(models.Model):
     def __str__(self):
         return f"Order {self.id} - {self.user.email}"
 
+    def decrement_stock(self):
+        if not self.stock_decremented:
+            for item in self.items.all():
+                if item.variant:
+                    item.variant.stock = max(0, item.variant.stock - item.quantity)
+                    item.variant.save()
+                elif item.product:
+                    item.product.stock = max(0, item.product.stock - item.quantity)
+                    item.product.save()
+            self.stock_decremented = True
+            self.save(update_fields=['stock_decremented'])
+
+from products.models import Product, ProductVariant
+
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items')
     product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True)
+    variant = models.ForeignKey(ProductVariant, on_delete=models.SET_NULL, null=True, blank=True)
     product_name = models.CharField(max_length=255) # Snapshot
+    color_name = models.CharField(max_length=100, blank=True) # Snapshot
     price = models.DecimalField(max_digits=10, decimal_places=2)
     quantity = models.PositiveIntegerField()
 
     def __str__(self):
-        return f"{self.quantity} x {self.product_name} in Order {self.order.id}"
+        color = f" ({self.color_name})" if self.color_name else ""
+        return f"{self.quantity} x {self.product_name}{color} in Order {self.order.id}"
+

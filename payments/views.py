@@ -78,6 +78,9 @@ class VerifyPaymentView(APIView):
                 order.razorpay_order_id = razorpay_order_id
             order.order_status = 'Paid'
             order.save()
+
+            # Decrement stock for ordered variants/products
+            order.decrement_stock()
             
             # Clear user cart on success
             clear_cart = request.data.get('clear_cart', True)

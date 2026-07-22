@@ -2,9 +2,9 @@ from rest_framework import viewsets, filters, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
-from .models import Category, Product, ProductImage, Review
+from .models import Category, Product, ProductVariant, ProductImage, Review
 from .serializers import (
-    CategorySerializer, ProductListSerializer, ProductDetailSerializer, ProductImageSerializer, ReviewSerializer
+    CategorySerializer, ProductListSerializer, ProductDetailSerializer, ProductImageSerializer, ReviewSerializer, ProductVariantSerializer
 )
 from .cloudinary_utils import delete_cloudinary_image
 class IsAdminOrReadOnly(permissions.BasePermission):
@@ -67,21 +67,28 @@ class ProductImageViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         is_main = serializer.validated_data.get('is_main', False)
-        product = serializer.validated_data.get('product')
-        if is_main and product:
-            ProductImage.objects.filter(product=product, is_main=True).update(is_main=False)
+        variant = serializer.validated_data.get('variant')
+        if is_main and variant:
+            ProductImage.objects.filter(variant=variant, is_main=True).update(is_main=False)
         serializer.save()
 
     def perform_update(self, serializer):
         is_main = serializer.validated_data.get('is_main', False)
-        product = serializer.validated_data.get('product')
-        if is_main and product:
-            ProductImage.objects.filter(product=product, is_main=True).update(is_main=False)
+        variant = serializer.validated_data.get('variant')
+        if is_main and variant:
+            ProductImage.objects.filter(variant=variant, is_main=True).update(is_main=False)
         serializer.save()
 
     def perform_destroy(self, instance):
         delete_cloudinary_image(instance.image)
         instance.delete()
+
+
+class ProductVariantViewSet(viewsets.ModelViewSet):
+    queryset = ProductVariant.objects.all()
+    serializer_class = ProductVariantSerializer
+    permission_classes = [IsAdminOrReadOnly]
+
 
 
 class ReviewViewSet(viewsets.ModelViewSet):

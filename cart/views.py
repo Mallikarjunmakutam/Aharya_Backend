@@ -19,15 +19,27 @@ class CartViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'], url_path='add-item')
     def add_item(self, request):
         cart = self.get_object()
+        variant_id = request.data.get('variant_id')
         product_id = request.data.get('product_id')
         quantity = int(request.data.get('quantity', 1))
 
-        try:
-            product = Product.objects.get(id=product_id)
-        except Product.DoesNotExist:
-            return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
+        from products.models import Product, ProductVariant
+        if variant_id:
+            try:
+                variant = ProductVariant.objects.get(id=variant_id)
+                product = variant.product
+            except ProductVariant.DoesNotExist:
+                return Response({'error': 'Variant not found'}, status=status.HTTP_404_NOT_FOUND)
+        elif product_id:
+            try:
+                product = Product.objects.get(id=product_id)
+                variant = product.variants.first()
+            except Product.DoesNotExist:
+                return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
+        else:
+            return Response({'error': 'Product or Variant ID is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-        cart_item, created = CartItem.objects.get_or_create(cart=cart, product=product)
+        cart_item, created = CartItem.objects.get_or_create(cart=cart, product=product, variant=variant)
         if not created:
             cart_item.quantity += quantity
         else:
@@ -39,11 +51,16 @@ class CartViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'], url_path='update-quantity')
     def update_quantity(self, request):
         cart = self.get_object()
+        variant_id = request.data.get('variant_id')
         product_id = request.data.get('product_id')
         quantity = int(request.data.get('quantity', 1))
 
         try:
-            cart_item = CartItem.objects.get(cart=cart, product_id=product_id)
+            if variant_id:
+                cart_item = CartItem.objects.get(cart=cart, variant_id=variant_id)
+            else:
+                cart_item = CartItem.objects.get(cart=cart, product_id=product_id)
+            
             if quantity > 0:
                 cart_item.quantity = quantity
                 cart_item.save()
@@ -57,9 +74,14 @@ class CartViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'], url_path='remove-item')
     def remove_item(self, request):
         cart = self.get_object()
+        variant_id = request.data.get('variant_id')
         product_id = request.data.get('product_id')
         
-        CartItem.objects.filter(cart=cart, product_id=product_id).delete()
+        if variant_id:
+            CartItem.objects.filter(cart=cart, variant_id=variant_id).delete()
+        else:
+            CartItem.objects.filter(cart=cart, product_id=product_id).delete()
+            
         return Response(CartSerializer(cart, context={'request': request}).data)
 
     @action(detail=False, methods=['post'], url_path='clear')

@@ -1,21 +1,24 @@
 from rest_framework import serializers
 from .models import Cart, CartItem, Wishlist
-from products.serializers import ProductListSerializer
+from products.serializers import ProductListSerializer, ProductVariantSerializer
 
 class CartItemSerializer(serializers.ModelSerializer):
     product = ProductListSerializer(read_only=True)
-    product_id = serializers.UUIDField(write_only=True)
+    product_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)
+    variant = ProductVariantSerializer(read_only=True)
+    variant_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)
     total_price = serializers.ReadOnlyField()
 
     class Meta:
         model = CartItem
-        fields = ['id', 'product', 'product_id', 'quantity', 'total_price']
+        fields = ['id', 'product', 'product_id', 'variant', 'variant_id', 'quantity', 'total_price']
 
-    def validate_product_id(self, value):
-        from products.models import Product
-        if not Product.objects.filter(id=value).exists():
-            raise serializers.ValidationError("Product not found")
-        return value
+    def validate(self, attrs):
+        product_id = attrs.get('product_id')
+        variant_id = attrs.get('variant_id')
+        if not product_id and not variant_id:
+            raise serializers.ValidationError("Either product_id or variant_id must be provided")
+        return attrs
 
 class CartSerializer(serializers.ModelSerializer):
     items = CartItemSerializer(many=True, read_only=True)
@@ -33,3 +36,4 @@ class WishlistSerializer(serializers.ModelSerializer):
         model = Wishlist
         fields = ['id', 'user', 'products', 'created_at']
         read_only_fields = ['user']
+
